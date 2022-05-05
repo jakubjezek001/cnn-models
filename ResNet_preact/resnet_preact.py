@@ -34,17 +34,45 @@ def residual_standard_unit(n, nout, s, newdepth = False, is_first = False):
     bottom = net[list(net.keys())[-1]] #find the last layer in netspec
     stride = 2 if newdepth else 1
 
-    net[s + 'bn1'], net[s + 'scale1'], net[s + 'relu1'], net[s + 'conv1'] = bn_conv(bottom, ks = 3, stride = stride, nout = nout, pad = 1, bn_inplace=False, is_first=is_first)
-    net[s + 'bn2'], net[s + 'scale2'], net[s + 'relu2'], net[s + 'conv2'] = bn_conv(net[s + 'conv1'], ks = 3, stride = 1, nout = nout, pad = 1)
+    (
+        net[f'{s}bn1'],
+        net[f'{s}scale1'],
+        net[f'{s}relu1'],
+        net[f'{s}conv1'],
+    ) = bn_conv(
+        bottom,
+        ks=3,
+        stride=stride,
+        nout=nout,
+        pad=1,
+        bn_inplace=False,
+        is_first=is_first,
+    )
+
+    (
+        net[f'{s}bn2'],
+        net[f'{s}scale2'],
+        net[f'{s}relu2'],
+        net[f'{s}conv2'],
+    ) = bn_conv(net[f'{s}conv1'], ks=3, stride=1, nout=nout, pad=1)
+
 
     if newdepth:
-        net[s + 'conv_expand'] = L.Convolution(net[s + 'relu1'], kernel_size=1, stride=stride,
-            num_output=nout, pad=0, bias_term=False, param = [dict(lr_mult=1, decay_mult=1)],
+        net[f'{s}conv_expand'] = L.Convolution(
+            net[f'{s}relu1'],
+            kernel_size=1,
+            stride=stride,
+            num_output=nout,
+            pad=0,
+            bias_term=False,
+            param=[dict(lr_mult=1, decay_mult=1)],
             weight_filler=dict(type="msra"),
-            bias_filler=dict(type="constant",value=0))
-        net[s + 'sum'] = L.Eltwise(net[s + 'conv2'], net[s + 'conv_expand'])
+            bias_filler=dict(type="constant", value=0),
+        )
+
+        net[f'{s}sum'] = L.Eltwise(net[f'{s}conv2'], net[f'{s}conv_expand'])
     else:
-        net[s + 'sum'] = L.Eltwise(net[s + 'conv2'], bottom)
+        net[f'{s}sum'] = L.Eltwise(net[f'{s}conv2'], bottom)
 
 
 def residual_bottleneck_unit(n, nout, s, newdepth = False, is_first = False):
@@ -56,18 +84,52 @@ def residual_bottleneck_unit(n, nout, s, newdepth = False, is_first = False):
     bottom = net[list(net.keys())[-1]] #find the last layer in netspec
     stride = 2 if newdepth else 1
 
-    net[s + 'bn1'], net[s + 'scale1'], net[s + 'relu1'], net[s + 'conv1'] = bn_conv(bottom, ks = 1, stride = 1, nout = nout, pad = 0, bn_inplace=False, is_first=is_first)
-    net[s + 'bn2'], net[s + 'scale2'], net[s + 'relu2'], net[s + 'conv2'] = bn_conv(net[s + 'conv1'], ks = 3, stride = stride, nout = nout, pad = 1)
-    net[s + 'bn3'], net[s + 'scale3'], net[s + 'relu3'], net[s + 'conv3'] = bn_conv(net[s + 'conv2'], ks = 1, stride = 1, nout = 4*nout, pad = 0)
+    (
+        net[f'{s}bn1'],
+        net[f'{s}scale1'],
+        net[f'{s}relu1'],
+        net[f'{s}conv1'],
+    ) = bn_conv(
+        bottom,
+        ks=1,
+        stride=1,
+        nout=nout,
+        pad=0,
+        bn_inplace=False,
+        is_first=is_first,
+    )
+
+    (
+        net[f'{s}bn2'],
+        net[f'{s}scale2'],
+        net[f'{s}relu2'],
+        net[f'{s}conv2'],
+    ) = bn_conv(net[f'{s}conv1'], ks=3, stride=stride, nout=nout, pad=1)
+
+    (
+        net[f'{s}bn3'],
+        net[f'{s}scale3'],
+        net[f'{s}relu3'],
+        net[f'{s}conv3'],
+    ) = bn_conv(net[f'{s}conv2'], ks=1, stride=1, nout=4 * nout, pad=0)
+
 
     if newdepth or is_first:
-        net[s + 'conv_expand'] = L.Convolution(net[s + 'relu1'], kernel_size=1, stride=stride,
-            num_output=4*nout, pad=0, bias_term=False, param = [dict(lr_mult=1, decay_mult=1)],
+        net[f'{s}conv_expand'] = L.Convolution(
+            net[f'{s}relu1'],
+            kernel_size=1,
+            stride=stride,
+            num_output=4 * nout,
+            pad=0,
+            bias_term=False,
+            param=[dict(lr_mult=1, decay_mult=1)],
             weight_filler=dict(type="msra"),
-            bias_filler=dict(type="constant",value=0))
-        net[s + 'sum'] = L.Eltwise(net[s + 'conv3'], net[s + 'conv_expand'])
+            bias_filler=dict(type="constant", value=0),
+        )
+
+        net[f'{s}sum'] = L.Eltwise(net[f'{s}conv3'], net[f'{s}conv_expand'])
     else:
-        net[s + 'sum'] = L.Eltwise(net[s + 'conv3'], bottom)
+        net[f'{s}sum'] = L.Eltwise(net[f'{s}conv3'], bottom)
 
 
 
@@ -86,7 +148,7 @@ def residual_net(total_depth, num_classes = 1000, acclayer = True):
         101:([3, 4, 23, 3], "bottleneck"),
         152:([3, 8, 36, 3], "bottleneck"),
     }
-    assert total_depth in net_defs.keys(), "net of depth:{} not defined".format(total_depth)
+    assert total_depth in net_defs, f"net of depth:{total_depth} not defined"
 
     nunits_list, unit_type = net_defs[total_depth] # nunits_list a list of integers indicating the number of layers in each depth.
     base_filter_size = 64
@@ -117,12 +179,12 @@ def residual_net(total_depth, num_classes = 1000, acclayer = True):
     # make the convolutional body
     for nout, nunits in zip(nouts, nunits_list): # for each depth and nunits
         for unit in range(1, nunits + 1): # for each unit. Enumerate from 1.
-            s = 'layer_' + str(nout) + '_' + str(unit) + '_' # layer name prefix
+            s = f'layer_{str(nout)}_{str(unit)}_'
             if unit_type == "standard":
                 residual_standard_unit(n, nout, s, newdepth = unit is 1 and nout > base_filter_size, is_first=unit is 1 and nout is base_filter_size)
             else:
                 residual_bottleneck_unit(n, nout, s, newdepth = unit is 1 and nout > base_filter_size, is_first=unit is 1 and nout is base_filter_size)
-            
+
 
     # add the end layers
     n.last_bn = L.BatchNorm(net[list(net.keys())[-1]], param=[dict(lr_mult=0),dict(lr_mult=0),dict(lr_mult=0)], in_place=False)
